@@ -27,15 +27,15 @@ def get_done_list(src_folder,outDir,filter):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='preprocess_BCSA')
-    parser.add_argument('--data_folder', type=str, default=r'D:\program_jiang\Pro\BCA\BinCola_Public\IDA_Process\example\test_out', help='sentences folder')
-    parser.add_argument('--out', type=str, default='input/', help='save folder')
+    parser.add_argument('--src_folder', type=str, default=r'D:\program_jiang\Pro\BCA\BinCola_Public\IDA_Process\example\test_out', help='sentences folder')
+    parser.add_argument('--out_folder', type=str, default='input/', help='save folder')
     args = parser.parse_args()
 
-    filter = {'bin_name':['a2ps'],
+    filter = {'bin_name':['all'],
               'version':['all'],
               'compiler':['all'],
               'arch':['all'],
               'opt':['all'],
               'others':['all']}
     not_include = ['lto','noinline','obfus_2loop','pie','sizeopt']
-    get_done_list(args.data_folder, args.out, filter)
+    get_done_list(args.src_folder, args.out_folder, filter)

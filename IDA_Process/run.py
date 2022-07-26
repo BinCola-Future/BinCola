@@ -184,7 +184,7 @@ if __name__ == '__main__':
 
     (opts, args) = op.parse_args()
 
-    filter = {'bin_name':['a2ps.elf'],
+    filter = {'bin_name':['all'],
               'version':['all'],
               'compiler':['all'],
               'arch':['all'],
@@ -200,4 +200,3 @@ if __name__ == '__main__':
     
     clear_mid_file(opts.src_folder)
     get_done_list(opts.out_folder, filter, log_folder)
-    done_list = os.path.join(log_folder,'done_list.txt')

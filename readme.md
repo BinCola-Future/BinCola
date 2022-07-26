@@ -47,14 +47,23 @@ tar -xzvf experiments.tar.gz
 **b. Preprocess binary files**
 
 ```python
-python IDA_Process/run.py
+python IDA_Process/run.py \
+    --src_folder "binary file directory" 
+    --out_folder "The parsed pickle file save directory"
+    --ida_path "ida tool path"
+    --script_path "ida script path"
 ```
 
 **c. Train and evaluate the model**
 
 ```python
 # Generate a list of training files
-python core/preprocess_bcsa.py
+python core/preprocess_bcsa.py \
+    --src_folder "The parsed pickle file save directory"
+    --out_folder "training file list save folder"
 # Train and evaluate the model
-python core/train.py --debug --train --input_list "training file list path"
+python core/train.py \
+    --debug # fix random seed
+    --train # Set to training mode, otherwise evaluation mode
+    --input_list "training file list save path"
 ```
