@@ -27,8 +27,8 @@ def get_done_list(src_folder,outDir,filter):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='preprocess_BCSA')
-    parser.add_argument('--src_folder', type=str, default=r'D:\program_jiang\Pro\BCA\BinCola_Public\IDA_Process\example\test_out', help='sentences folder')
-    parser.add_argument('--out_folder', type=str, default='input/', help='save folder')
+    parser.add_argument('--src_folder', type=str, default='xxx', help='sentences folder')
+    parser.add_argument('--out_folder', type=str, default='xxx', help='save folder')
     args = parser.parse_args()
 
     filter = {'bin_name':['all'],

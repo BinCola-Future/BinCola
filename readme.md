@@ -52,18 +52,22 @@ python IDA_Process/run.py \
     --out_folder "The parsed pickle file save directory"
     --ida_path "ida tool path"
     --script_path "ida script path"
+    --log_folder "log result save folder"
 ```
 
 **c. Train and evaluate the model**
 
 ```python
+cd core/
 # Generate a list of training files
-python core/preprocess_bcsa.py \
+python preprocess_bcsa.py \
     --src_folder "The parsed pickle file save directory"
     --out_folder "training file list save folder"
 # Train and evaluate the model
-python core/train.py \
+python train.py \
     --debug # fix random seed
     --train # Set to training mode, otherwise evaluation mode
     --input_list "training file list save path"
+    --config_folder "config folder"
+    --log_out "result save folder"
 ```

@@ -15,7 +15,7 @@ class Feature:
         feature extraction function
 
         get receives function data extracted from IDA script,
-        which is dictionary of various fields (see tiknib/ida/fetch_funcdata.py).
+        which is dictionary of various fields (see /ida_scripts/fetch_funcdata.py).
 
         get should return dictionary of features.
         ex)

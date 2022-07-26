@@ -75,9 +75,9 @@ def randstr(length):
 
 
 def gettmpdir():
-    tmpdir = os.path.join("/tmp", "tiknib_tmp", randstr(10))
+    tmpdir = os.path.join("/tmp", "bincola_tmp", randstr(10))
     while os.path.exists(tmpdir):
-        tmpdir = os.path.join("/tmp", "tiknib_tmp", randstr(10))
+        tmpdir = os.path.join("/tmp", "bincola_tmp", randstr(10))
     os.makedirs(tmpdir, exist_ok=True)
     return tmpdir
 
@@ -118,19 +118,18 @@ def demangle(name):
     return "".join(name), demangled
 
 
-def get_cache_fname(fname="", cache_dir=".tiknib_cache"):
+def get_cache_fname(fname="", cache_dir=".bincola_cache"):
     if not fname:
         fname = randstr(10)
     if not cache_dir:
-        cache_dir = os.path.join("./", ".tiknib_cache")
+        cache_dir = os.path.join("./", ".bincola_cache")
     cache_dir = os.path.abspath(cache_dir)
     os.makedirs(cache_dir, exist_ok=True)
-    # fname = hashlib.sha1(str(fname).encode()).hexdigest()
     cache_fname = os.path.join(cache_dir, "{}.pickle".format(fname))
     return cache_fname
 
 
-def load_cache(fname="", cache_dir=".tiknib_cache"):
+def load_cache(fname="", cache_dir=".bincola_cache"):
     cache_fname = get_cache_fname(fname=fname, cache_dir=cache_dir)
     if not os.path.exists(cache_fname):
         return
@@ -141,7 +140,7 @@ def load_cache(fname="", cache_dir=".tiknib_cache"):
     return data
 
 
-def store_cache(data, fname="", cache_dir=".tiknib_cache"):
+def store_cache(data, fname="", cache_dir=".bincola_cache"):
     cache_fname = get_cache_fname(fname=fname, cache_dir=cache_dir)
     logger.debug("[+] Creating cache file: %s" % (cache_fname))
     with open(cache_fname, "wb") as f:
@@ -255,7 +254,7 @@ def do_multiprocess(
     args,
     chunk_size=0,
     pool_size=cpu_count(),
-    taskset=False, # linux上使用，taskset可以用来设置一个已有进程或者新创建进程的CPU亲和力，可以让进程在指定的CPU上运行
+    taskset=False,
     initializer=None,
     initargs=None,
     timeout=0,

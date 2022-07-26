@@ -1,11 +1,7 @@
 # coding:utf-8
-# 基于对比学习
-# 基于Bfunc类的pickle文件格式
 import time
 import random
 import itertools
-
-# import gc
 import os
 import sys
 import datetime
@@ -15,7 +11,7 @@ import pandas as pd
 import yaml
 from tqdm import tqdm
 import heapq
-sys.path.append(r'D:\program_jiang\Pro\BCA\BinCola_Public')
+sys.path.append('..')
 from operator import itemgetter
 from optparse import OptionParser
 from sklearn.model_selection import KFold
@@ -128,16 +124,7 @@ def calc_metric_helper(func_key):
     tp_results = []
     tn_results = []
     target_opts = []
-    # Testing all functions takes too much time, so we select one true
-    # positive and one true negative function for each function.
     for src_opt, src_func in func_data.items():
-        # select one tp function.
-        ## below random.choice may work faster than list filtering.
-        # while True:
-        #    dst_opt = random.choice(option_candidates)
-        #    if dst_opt != src_opt:
-        #        if dst_opt in g_dst_options[src_opt]:
-        #            break
         candidates = []
         for opt in func_data:
             if opt == src_opt:
@@ -152,11 +139,8 @@ def calc_metric_helper(func_key):
         dst_opt = random.choice(candidates)
         tp_func = func_data[dst_opt]
 
-        # select one tn function
         while True:
             func_tn_key = random.choice(g_func_keys)
-            # Since difference binaries may have an equal function, pick a
-            # function having a different name for precise comparison
             if get_func(func_tn_key) != get_func(func_key):
                 if dst_opt in g_funcs[func_tn_key]:
                     tn_func = g_funcs[func_tn_key][dst_opt]
@@ -167,15 +151,12 @@ def calc_metric_helper(func_key):
         tp_results.append(relative_difference(src_func, tp_func))
         tn_results.append(relative_difference(src_func, tn_func))
         target_opts.append((src_opt, dst_opt))
-    # merge results into one numpy array
     if tp_results:
         tp_results = np.vstack(tp_results)
     if tn_results:
         tn_results = np.vstack(tn_results)
     return func_key, tp_results, tn_results, target_opts
 
-
-# inevitably use globals since it is fast.
 def _init_calc(funcs, dst_options):
     global g_funcs, g_func_keys, g_dst_options
     g_funcs = funcs
@@ -184,8 +165,6 @@ def _init_calc(funcs, dst_options):
 
 
 def calc_metric(funcs, dst_options):
-    # now select for features. this find local optimum value using hill
-    # climbing.
     metric_results = do_multiprocess(
         calc_metric_helper,
         funcs.keys(),
@@ -195,13 +174,11 @@ def calc_metric(funcs, dst_options):
         initargs=(funcs, dst_options),
     )
     func_keys, tp_results, tn_results, target_opts = zip(*metric_results)
-    # merge results into one numpy array
     tp_results = np.vstack([x for x in tp_results if len(x)])
     tn_results = np.vstack([x for x in tn_results if len(x)])
     assert len(tp_results) == len(tn_results)
     return func_keys, tp_results, tn_results, target_opts
 
-# 生成正负样本对
 # tp_pairs:[[{func_src:feature},{func_dst:feature}]]
 # tn_pairs:[[{func_src:feature},tn_dst_bins]]
 def create_train_pairs(funcs, dst_options, optionidx_map, negative_num):
@@ -213,13 +190,11 @@ def create_train_pairs(funcs, dst_options, optionidx_map, negative_num):
     for func_key in funcs.keys():
         func_data = g_funcs[func_key]
         option_candidates = list(func_data.keys())
-        # Testing all functions takes too much time, so we select one true
-        # positive and one true negative function for each function.
         for src_opt, src_func in func_data.items():
             candidates = []
             for opt in func_data:
                 if opt == src_opt:
-                    continue # 不添加自身的配置
+                    continue
                 if src_opt not in g_dst_options:
                     continue
                 if opt not in g_dst_options[src_opt]:
@@ -227,13 +202,11 @@ def create_train_pairs(funcs, dst_options, optionidx_map, negative_num):
                 candidates.append(opt)
             if not candidates:
                 continue
-            # print(src_opt,[optionidx_map[opt] for opt in candidates])
-            # exit(0)
             dst_opt = random.choice(candidates)
             tp_func = func_data[dst_opt]
 
             # select n tn function
-            n = 0 # 选择negative_num个负样本
+            n = 0
             tn_funcs = []
             func_tn_keys = []
             while n < negative_num:
@@ -244,7 +217,6 @@ def create_train_pairs(funcs, dst_options, optionidx_map, negative_num):
                     if get_func(func_tn_key) != get_func(func_key):
                         if dst_opt in g_funcs[func_tn_key]:
                             tn_func = g_funcs[func_tn_key][dst_opt]
-                            # print("{}--->{}".format(func_key,func_tn_key))
                             tn_funcs.append(tn_func)
                             func_tn_keys.append(func_tn_key)
                             break
@@ -277,41 +249,11 @@ def load_model(opts, device):
                                 model_opt.d_v,
                                 model_opt.att_type,
                                 model_opt.dropout,
-                                model_opt.out_type).to(device)  # 定义模型且移至GPU
+                                model_opt.out_type).to(device)
 
     model.load_state_dict(checkpoint['model'])
     logger.info('[Info] Trained model state loaded.')
     return model
-
-# Select features in greedy way
-def train(tp_results, tn_results, features):
-    max_roc = None
-    num_features = len(features)
-    selected_feature_indices = []
-    for idx in range(num_features):
-        tmp_results = {}
-        for feature_idx in range(num_features):
-            if feature_idx in selected_feature_indices:
-                continue
-            tmp_feature_indices = selected_feature_indices.copy()
-            tmp_feature_indices.append(feature_idx)
-            # check roc for training functions
-            roc, ap = calc_results(tp_results, tn_results, tmp_feature_indices)
-            tmp_results[feature_idx] = (roc, ap)
-        feature_idx, (roc, ap) = max(tmp_results.items(), key=itemgetter(1, 0))
-        if max_roc and roc < max_roc:
-            break
-        max_roc = roc
-        selected_feature_indices.append(feature_idx)
-        logger.debug(
-            "%d/%d: %d selected. roc: %0.6f (include %s)",
-            idx + 1,
-            len(features),
-            len(selected_feature_indices),
-            roc,
-            features[feature_idx],
-        )
-    return selected_feature_indices
 
 
 def calc_results(pred, label):
@@ -319,7 +261,6 @@ def calc_results(pred, label):
 
 # funcs:{(package, bin_name, func_name):{option_idx:[feature]}}
 # feature_indices:[select_feature]
-# 从相同函数的两个编译选项选择一个作为查询query，另一个放入数据集被匹配data
 def calc_topK(src_all, dst_all, lable_all, k_list, func_num, sim_method):
     query = []
     data = []
@@ -336,30 +277,27 @@ def calc_topK(src_all, dst_all, lable_all, k_list, func_num, sim_method):
         sim_func = sim_obj.pearsonrSim
     elif sim_method == 'ManhattanDisSim':
         sim_func = sim_obj.manhattanDisSim
-    # 抽样函数个数值计算topk
+
     for i,x in enumerate(lable_all):
         if x == 1.0:
             pos_true.append(i)
             if len(pos_true) >= func_num:
                 break
-    # pos_true = [i for i,x in enumerate(lable_all) if x == 1.0]
+
     for i in pos_true:
         query.append(src_all[i])
         data.append(dst_all[i])
-    # print('num-{} top'.format(len(query)))
-    # exit(0)
-
     num_list = list(np.zeros(len(k_list)))
     total = float(len(pos_true))
-    score_list = [] # recall值
-    rank_list = [] # MRR值
+    score_list = []
+    rank_list = []
     for i in tqdm(range(len(query))):
         q = query[i]
         pred_list = [sim_func(q,d) for d in data]
         pred_dict = {}
         for idx,item in enumerate(pred_list):
             pred_dict[idx] = item
-        pred_dict = dict(sorted(pred_dict.items(), key=lambda d: d[1], reverse=True)) # 降序,sorted返回的是列表，要先转字典
+        pred_dict = dict(sorted(pred_dict.items(), key=lambda d: d[1], reverse=True))
         for rank,pred in enumerate(list(pred_dict.keys())):
             if i == pred:
                 rank_list.append(float(rank+1))
@@ -370,14 +308,12 @@ def calc_topK(src_all, dst_all, lable_all, k_list, func_num, sim_method):
                 num_list[idx] += 1
     for idx in range(len(k_list)):
         score_list.append(num_list[idx]/total)
-    # 计算MRR
+
     rank_re_array = np.array(list(map(lambda x : 1.0/x, rank_list)))
     MRR = np.sum(rank_re_array)/total
 
     return score_list,MRR
 
-
-# preprocess possible target options for src option
 def load_options(config):
     options = ["opti", "arch", "compiler", "others"]
     src_options = []
@@ -406,12 +342,6 @@ def load_options(config):
             return True
 
         candidates = list(filter(_check_option, dst_options))
-
-        # arch needs more filtering ...
-        # - 32 vs 64 bits
-        # - little vs big endian
-        # need to have same archs without bits
-        # TODO: move this file name checking into config option.
         if "arch_bits" in config["fname"]:
 
             def _check_arch_without_bits(opt):
@@ -456,9 +386,7 @@ def group_binaries(input_list):
     )
     return bins, packages
 
-# {函数名:{编译选项索引:{函数特征}}}
 def load_func_features_helper(bin_paths):
-    # returns {function_key: {option_idx: np.array(feature_values)}}
     global g_options, g_features
     global g_baseline
     func_features = {}
@@ -497,16 +425,9 @@ def load_func_features_helper(bin_paths):
                         func_features[func_key][option_idx][feature_idx] = val
                     except Exception as e:
                         logger.info('{}-{}'.format(bin_path,e))
-            elif g_baseline == 'SAFE':
-                pass
-            elif g_baseline == 'Jtrans':
-                func_features[func_key][option_idx] = func_data['jtrans_feature'].tolist()
-            elif g_baseline == 'Palmtree':
-                func_features[func_key][option_idx] = func_data['palmtree_feature'].tolist()
             else:
                 pass
     return func_features
-
 
 # inevitably use globals since it is fast.
 def _init_load(options, features, baseline):
@@ -518,7 +439,6 @@ def _init_load(options, features, baseline):
 
 
 def load_func_features(input_list, options, features, baseline):
-    global jtrans_model,tokenizer
     grouped_bins, packages = group_binaries(input_list)
     func_features_list = do_multiprocess(
         load_func_features_helper,
@@ -533,7 +453,6 @@ def load_func_features(input_list, options, features, baseline):
         funcs.update(func_features)
     return funcs
 
-# 保存binary-func-opt-feature
 def save_funcdatalist_csv(funcs,options,features,outdir):
     logger.info('start save func_data list ...')
     func_list = []
@@ -550,14 +469,12 @@ def save_funcdatalist_csv(funcs,options,features,outdir):
                     features_dict[feature] = [funcs[func][opts][idx]]
                 else:
                     features_dict[feature].append(funcs[func][opts][idx])
-    # dataframe = pd.DataFrame({'func_name': func_list, 'options': opts_list, '-'.join(features): features_list})
     data_dict = {'func_name': func_list, 'options': opts_list}
     data_dict.update(features_dict)
     dataframe = pd.DataFrame(data_dict)
     dataframe.to_csv(os.path.join(outdir,"funcdatalist.csv"), index=False, sep=',')
     logger.info('save func_data list csv in {}'.format(os.path.join(outdir,"funcdatalist.csv")))
 
-# 保存经过神经网络前后的函数特征
 def save_origin_attn_feature_csv(src_options, src_origin, src_all, dst_options, dst_origin, dst_all, features, outdir):
     logger.info('start save origin_attn_feature ...')
     func_list = []
@@ -586,10 +503,6 @@ def save_origin_attn_feature_csv(src_options, src_origin, src_all, dst_options, 
     logger.info('save origin_attn_feature csv in {}'.format(os.path.join(outdir,"origin_attn_feature.csv")))
 
 
-
-
-
-# binary-options-ROC-AP-TOP1-TOP5
 def save_result_csv(save_dict,outdir):
     os.makedirs(outdir, exist_ok=True)
     dataframe = pd.DataFrame(save_dict)
@@ -603,32 +516,23 @@ def set_seed(seed):
     np.random.seed(seed)
     random.seed(seed)
 
-
-# att:[50,50]
-# features:[50]
-# attn_src [layer [batch,head,nq,nk]]
 def att_weight_analysis(att,features,outdir):
-    # multi_att = np.mean(att,axis=0)
     fileObject = open(os.path.join(outdir,"features.txt"), 'w') 
     for fea in features:  
         fileObject.write(str(fea))  
         fileObject.write('\n') 
     fileObject.close()
-    # 所有layer-att求和
     multi_att = att[0]
     for i in range(1,len(att)):
         multi_att = multi_att + att[i]
     multi_att = multi_att.cpu().detach().numpy()
-    # batch维度求均值
     multi_att = np.mean(multi_att,axis=0)
-    # head维度求和
     multi_att = np.sum(multi_att,axis=0)
-    # print(multi_att,multi_att.shape)
     np.save(os.path.join(outdir,"multi_att.npy"), multi_att)
     heapMapPlot(multi_att,features,"multi_att.pdf",outdir,'YlGnBu')
 
     multi_att = np.sum(multi_att, axis=0)
-    fea_ids = heapq.nlargest(10, range(len(multi_att)), multi_att.take) # 取权值最大的前10个特征的索引列表
+    fea_ids = heapq.nlargest(10, range(len(multi_att)), multi_att.take)
     fileObject = open(os.path.join(outdir,"features_att.txt"), 'w')
     for i in range(len(fea_ids)):
         index = fea_ids[i]
@@ -654,27 +558,9 @@ def do_train(opts):
     MRR_list = []
     Test_Poolsize_list = []
     poolsize_list =[32,1000]
-    config_folder = r"D:\program_jiang\Pro\BCA\BinCola_Public\config/gnu_{}/".format(opts.feature_choose)
-    
+    config_folder = opts.config_folder
     config_fname_list = [
-        # config_folder + "config_gnu_normal_comp_gcc-clang_type.yml",
-        # config_folder + "config_gnu_normal_all_type.yml",
-        # config_folder + "config_gnu_normal_arch_all_type.yml",
-        # config_folder + "config_gnu_normal_arch_arm_mips_type.yml",
-        # config_folder + "config_gnu_normal_arch_x86_arm_type.yml",
-        # config_folder + "config_gnu_normal_arch_x86_mips_type.yml",
-        # config_folder + "config_gnu_normal_obfus_all_type.yml",
-        # config_folder + "config_gnu_normal_obfus_bcf_type.yml",
-        # config_folder + "config_gnu_normal_obfus_fla_type.yml",
-        # config_folder + "config_gnu_normal_obfus_sub_type.yml",
-        config_folder + "config_gnu_normal_opti_O0-O3_type.yml",
-        # config_folder + "config_gnu_normal_opti_O0toO3_type.yml",
-        # config_folder + "config_gnu_normal_opti_O1-O2_type.yml",
-        # config_folder + "config_gnu_normal_opti_O1-O3_type.yml",
-        # config_folder + "config_gnu_normal_opti_O2-O3_type.yml",
-        # config_folder + "config_gnu_normal_opti_O0-Os_type.yml",
-        # config_folder + "config_gnu_normal_opti_O1-Os_type.yml",
-        # config_folder + "config_gnu_normal_opti_O2-Os_type.yml",
+        os.path.join(config_folder,"config_gnu_normal_opti_O0-O3_type.yml"),
     ]
     
     for config_fname in tqdm(config_fname_list):
@@ -687,13 +573,13 @@ def do_train(opts):
             outdir = config["outdir"]
         else:
             base_name = os.path.splitext(os.path.basename(config_fname))[0]
-            outdir = os.path.join(opts.log_out, opts.sim_method, opts.out_type, opts.feature_choose, base_name)
+            outdir = os.path.join(opts.log_out, opts.sim_method, opts.out_type, base_name)
         out_curve = os.path.join(outdir, 'curve')
         out_attn = os.path.join(outdir, 'attn')
         date = datetime.datetime.now()
         outdir = os.path.join(outdir, str(date).replace(':','-').replace(' ','-'))
 
-        model_save = os.path.join(opts.log_out, opts.sim_method, opts.out_type, opts.feature_choose, opts.model_save)
+        model_save = os.path.join(opts.log_out, opts.sim_method, opts.out_type, opts.model_save)
         os.makedirs(outdir, exist_ok=True)
         os.makedirs(model_save, exist_ok=True)
         file_handler = logging.FileHandler(os.path.join(outdir, "log.txt"))
@@ -701,7 +587,6 @@ def do_train(opts):
         logger.info("config file name: %s", config["fname"])
         logger.info("output directory: %s", outdir)
 
-        # 设置函数对的编译选项，为生成正样本对做准备dst_options{src:[dst]}
         options, dst_options = load_options(config)
         features = sorted(config["features"])
         logger.info("%d features", len(features))
@@ -724,7 +609,6 @@ def do_train(opts):
         optionidx_map = get_optionidx_map_re(options)
 
         logger.info("Split Datasets and Create Dataloader...")
-        # 划分数据集 8:1:1
         func_keys = sorted(funcs.keys())
         if opts.debug:
             set_seed(1226)
@@ -761,7 +645,7 @@ def do_train(opts):
         logger.info("# of Test Pairs: %d", len(test_tp_pairs) + len(test_tn_pairs)*opts.negative_num)
         
         if opts.model_save == 'model_save':
-            model_name = 'funcs{}_{}_fea{}_hid{}_kv{}_head{}_layer{}_negnum{}_outtype{}_feature_{}_temper_{}.chkpt'.format(
+            model_name = 'funcs{}_{}_fea{}_hid{}_kv{}_head{}_layer{}_negnum{}_outtype{}_temper_{}.chkpt'.format(
                 len(func_keys),
                 config_fname.split('config_gnu_normal_')[1].split('_type.yml')[0],
                 opts.feature_dim,
@@ -771,25 +655,12 @@ def do_train(opts):
                 opts.n_layers,
                 opts.negative_num,
                 opts.out_type,
-                opts.feature_choose,
                 opts.temper,
             )
-        else:
-            model_name = '{}_fea{}_hid{}_kv{}_head{}_layer{}_negnum{}_outtype{}_feature_{}.chkpt'.format(
-                config_fname.split('config_gnu_normal_')[1].split('_type.yml')[0],
-                opts.feature_dim,
-                opts.hidden_dim,
-                opts.d_k,
-                opts.n_head,
-                opts.n_layers,
-                25,
-                opts.out_type,
-                opts.feature_choose
-            )
+
 
         if opts.train:
             opts.model_path = os.path.join(model_save, model_name)
-            # 如果模型存在则继续训练
             if os.path.exists(opts.model_path):
                 net = load_model(opts,device)
                 logger.info("Load model {}...".format(opts.model_path))
@@ -802,8 +673,7 @@ def do_train(opts):
                                         opts.d_v,
                                         opts.att_type,
                                         opts.dropout,
-                                        opts.out_type).to(device)  # 定义模型且移至GPU
-            # optimizer = optim.Adam(net.parameters(), lr=0.0005)  # 定义优化器
+                                        opts.out_type).to(device)
             optimizer = ScheduledOptim(
                 optim.Adam(net.parameters(), lr=0.0005, betas=(0.9, 0.98), eps=1e-09),
                 opts.lr_mul, opts.feature_dim, opts.warmup_steps)
@@ -819,10 +689,6 @@ def do_train(opts):
                 from torch.utils.tensorboard import SummaryWriter
 
                 tb_writer = SummaryWriter(log_dir=os.path.join(outdir, 'tensorboard'))
-                # 绘制网络结构图
-                # tb_writer.add_graph(net,
-                #                     input_to_model=[torch.ones(1, opts.feature_dim).float().to(device), torch.ones(1, opts.feature_dim).float().to(device)],
-                #                     verbose=False)
             stop_mark = 0
             for epoch in range(opts.epoch):
                 pred_all = []
@@ -921,25 +787,21 @@ def do_train(opts):
                 pos_out.extend(pos_out_array)
                 neg_out.extend(neg_out_array)
                 
-                # 正样本相似度
                 for j in range(len(src_out_array)):
                     simobj = SimCal(src_out_array[j],pos_out_array[j])
                     pred_all.append(simobj.v_t_dict[opts.sim_method])
-                # 负样本相似度
+
                 for j in range(len(src_out_array)):
                     simobj = SimCal(src_out_array[j],neg_out_array[j])
                     pred_all.append(simobj.v_t_dict[opts.sim_method])
-                # pred_all.extend(similarity.cpu().detach().numpy()) # 原始相似度
                     
                 lable_all.extend([1.0 for _ in range(int(pred.shape[0]/2))])
                 lable_all.extend([0.0 for _ in range(int(pred.shape[0]/2))])
-                # attn_src [layer [batch,head,nq,nk]]
                 if i == 0:
                     os.makedirs(out_attn, exist_ok=True)
                     att_weight_analysis(slf_attn,features,out_attn) # 查看注意力权重特点
                     logger.info('save att_weight...')
         elif opts.test_type == 'no_dl':
-        # 没有经过网络结构直接测试基础特征效果
             for i, data in enumerate(test_data_loader):
                 src_option, src, pos, neg = data
                 src_out_array = src.cpu().detach().numpy()
@@ -1009,39 +871,8 @@ def do_train(opts):
                 'valid_pairs':valid_pairs_list,
                 'test_pairs':test_pairs_list}
     date = datetime.datetime.now()
-    savedir = os.path.join(opts.log_out, opts.sim_method, opts.out_type, opts.feature_choose,'result_all',str(date).replace(':', '-').replace(' ', '-'))
+    savedir = os.path.join(opts.log_out, opts.sim_method, opts.out_type,'result_all',str(date).replace(':', '-').replace(' ', '-'))
     save_result_csv(result_dict,savedir)
-
-
-def analyze_results(data_all,k_list):
-    rocs = []
-    aps = []
-    topks_list = [[] for _ in range(len(k_list))]
-    train_times = []
-    test_times = []
-
-
-    for data in data_all:
-        train_roc, train_ap, train_time = data[:3]
-        test_roc, test_ap, test_time = data[3:6]
-        test_topk_list = data[-1]
-
-        rocs.append(test_roc)
-        aps.append(test_ap)
-        train_times.append(train_time)
-        test_times.append(test_time)
-        for idx, k in enumerate(k_list):
-            topks_list[idx].append(test_topk_list[idx])
-
-    logger.info("Avg. ROC: %0.6f", np.mean(rocs))
-    logger.info("Std. of ROC: %0.6f", np.std(rocs))
-    logger.info("Avg. AP: %0.6f", np.mean(aps))
-    logger.info("Std. of AP: %0.6f", np.std(aps))
-    for idx,k in enumerate(k_list):
-        logger.info("Avg. Top-%d: %0.6f", k,np.mean(topks_list[idx]))
-        logger.info("Std. of Top-%d: %0.6f", k,np.std(topks_list[idx]))
-    logger.info("Avg. Train time: %0.6f", np.mean(train_times))
-    logger.info("AVg. Test time: %0.6f", np.mean(test_times))
 
 
 if __name__ == "__main__":
@@ -1052,7 +883,15 @@ if __name__ == "__main__":
         action="store",
         dest="input_list",
         help="a file containing a list of input binaries",
-        default=r"D:\program_jiang\Pro\BCA\BinCola_Public\input\done_list_a2ps_all_all_all_all_all.txt"
+        default="xxx"
+    )
+    op.add_option(
+        "--config_folder",
+        type="str",
+        action="store",
+        dest="config_folder",
+        help="config folder",
+        default="xxx"
     )
     op.add_option("--batch_size",type=int,default=64)
     op.add_option("--feature_dim",type=int,default=128)
@@ -1080,7 +919,6 @@ if __name__ == "__main__":
     op.add_option('--temper', type=float, default=0.1)
     op.add_option('--test_type', choices=['with_dl','no_dl'], default='with_dl')
     op.add_option('--test_poolsize', type=int, default='32')
-    op.add_option('--feature_choose', choices=['fusion','type'], default='fusion')
     op.add_option('--loss_type', choices=['InfoNCE','MSE'], default='InfoNCE')
     op.add_option('--sim_method', choices=[
                     'EculidDisSim',
@@ -1089,17 +927,12 @@ if __name__ == "__main__":
 			        'ManhattanDisSim'], default='CosSim')
     op.add_option('--att_type', choices=[
                     'SelfAttention',
-                    'ExternalAttention',
                     'NoAttention'], default='SelfAttention')
     op.add_option('--out_type', choices=[
                     'last',
                     'mean',
                     'sum'], default='mean')
-    op.add_option('--baseline', choices=[
-                    'SAFE',
-                    'Jtrans',
-                    'Palmtree',
-                    'Self'], default='Self')
+    op.add_option('--baseline', choices=['Self'], default='Self')
 
     (opts, args) = op.parse_args()
     do_train(opts)

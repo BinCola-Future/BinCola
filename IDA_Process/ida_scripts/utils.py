@@ -60,7 +60,6 @@ def parse_fname(bin_path):
     matches = re.search(RESTR, base_name).groups()
     return matches
 
-# 还需要提取版本信息
 # openssl-OpenSSL_1_0_1a_gcc-4.9.4_arm_32_O0_libcrypto.so
 # matches => package, openssl_version, compiler, arch, opti, bin_name
 def parse_fname_ver(bin_path):
@@ -145,7 +144,6 @@ def get_cache_fname(fname="", cache_dir=".tiknib_cache"):
         cache_dir = os.path.join("./", ".tiknib_cache")
     cache_dir = os.path.abspath(cache_dir)
     os.makedirs(cache_dir, exist_ok=True)
-    # fname = hashlib.sha1(str(fname).encode()).hexdigest()
     cache_fname = os.path.join(cache_dir, "{}.pickle".format(fname))
     return cache_fname
 

@@ -52,45 +52,26 @@ def get_strings(start_addr, end_addr):
 
 
 # This function returns a caller map, and callee map for each function.
-# 获取所有函数的调用与被调用关系
 def get_call_graph():
     callee_map = defaultdict(list)
     caller_map = defaultdict(list)
     for callee_ea in idautils.Functions():
         callee = idaapi.get_func(callee_ea)
-        # TODO: Sometimes, IDA returns false result. so we need to check this
         if not callee:
             continue
 
         callee_name = idc.get_func_name(callee_ea)
-        # TODO: check flow boolean 1
-        # CodeRefsTo(ea, flow) 
-        # Get a list of code references to 'ea'
-        # ea: Target address
-        # flow: Follow normal code flow or not
-        # type flow: Boolean (0/1, False/True)
-        # return: list of references (may be empty list)
-        # 两种flow类型差不多
-        # caller_ea0 = list(map(lambda x : idc.get_func_name(x),idautils.CodeRefsTo(callee_ea, 0)))
-        # caller_ea1 = list(map(lambda x : idc.get_func_name(x),idautils.CodeRefsTo(callee_ea, 1)))
-        # print('get caller flow 0:{}->{}\n'.format(caller_ea0,callee_name))
-        # print('get caller flow 1:{}->{}\n'.format(caller_ea1,callee_name))
-
         for caller_ea in idautils.CodeRefsTo(callee_ea, 1):
             caller = idaapi.get_func(caller_ea)
-            # TODO: Sometimes, IDA returns false result. so we need to check
             if not caller:
                 continue
-
             caller_name = idc.get_func_name(caller_ea)
-            # TODO: check the correction - caller_ea -> callee_ea
             callee_map[caller_name].append([callee_name, callee_ea])
             caller_map[callee_name].append([caller_name, caller_ea])
     return caller_map, callee_map
 
 
 # This function returns edges, and updates caller_map, and callee_map
-# 获取函数所有基本块的边
 def get_bb_graph(caller_map, callee_map):
     edge_map = {}
     bb_callee_map = {}
@@ -98,10 +79,6 @@ def get_bb_graph(caller_map, callee_map):
         func = idaapi.get_func(func_ea)
         if not func or func.start_ea == idaapi.BADADDR or func.end_ea == idaapi.BADADDR:
             continue
-
-        # TODO: study how to use flags
-        # f_blocks = idaapi.FlowChart(idaapi.get_func(ea), flags=idaapi.FC_PREDS)
-        # 获取start_ea所在函数的所有基本块，可以通过遍历f_blocks中的基本块得到每个基本快的信息
         f_blocks = idaapi.FlowChart(func, flags=idaapi.FC_PREDS)
         func_name = idc.get_func_name(func.start_ea)
         edge_map[func_name] = []
@@ -114,12 +91,9 @@ def get_bb_graph(caller_map, callee_map):
                 edge_map[func_name].append((bb.id, succbb.id))
 
             for callee_name, callee_ea in callee_map[func_name]:
-                # Get address where current function calls a callee.
-                # 判断当前函数的调用函数地址是否在当前函数某个基本块范围内？自己调用自己的情况存在
                 if bb.start_ea <= callee_ea < bb.end_ea:
                     bb_callee_map[func_name].append((bb.id, callee_name, callee_ea))
     return edge_map, bb_callee_map
-
 
 def get_type(addr):
     tif = idaapi.tinfo_t()
@@ -263,11 +237,9 @@ def main():
             "consts": func_consts,
             "bb_data": bb_data,
         }
-        # print(temp_info)
         func_data.append(temp_info)
     return func_data
 
-# 获取单个函数特征
 def get_func_info(addr,arch,bin_path,bin_hash,caller_map,callee_map,edge_map,bb_callee_map):
     # Get IDA default information
     img_base = idaapi.get_imagebase()
@@ -307,33 +279,13 @@ def get_func_info(addr,arch,bin_path,bin_hash,caller_map,callee_map,edge_map,bb_
         if bb.start_ea == idaapi.BADADDR or bb.end_ea == idaapi.BADADDR:
             continue
 
-        # bb_size = bb.end_ea - bb.start_ea
-        # block_data = idc.get_bytes(bb.start_ea, bb_size) or b""
-        # block_data_hash = sha1(block_data).hexdigest()
         bb_strings = get_strings(bb.start_ea, bb.end_ea)
         bb_consts = get_consts(bb.start_ea, bb.end_ea)
-        # bb_callees = list(filter(lambda x: x[0] == bb.id, bb_callee_map[func_name]))
-        # bb_data.append(
-        #     {
-        #         "size": bb_size,
-        #         "block_id": bb.id,
-        #         "startEA": bb.start_ea,
-        #         "endEA": bb.end_ea,
-        #         "type": bb.type,
-        #         "is_ret": idaapi.is_ret_block(bb.type),
-        #         "hash": block_data_hash,
-        #         "callees": bb_callees,
-        #         "strings": bb_strings,
-        #         "consts": bb_consts,
-        #     }
-        # )
         func_strings.extend(bb_strings)
         func_consts.extend(bb_consts)
     temp_info = {
         "seg_name": idc.get_segm_name(addr),
         "name": func_name,
-        # "demangled_name": demangled_name,
-        # "demangled_full_name": demangled_full_name,
         "hash": data_hash,
         "size": function.size(),
         "startEA": function.start_ea,
@@ -354,7 +306,6 @@ def get_func_info(addr,arch,bin_path,bin_hash,caller_map,callee_map,edge_map,bb_
         "cfg": edge_map[func_name],
         "strings": func_strings,
         "consts": func_consts,
-        # "bb_data": bb_data,  # 在extract.py的Bfunc类中已保存
     }
     return temp_info
 

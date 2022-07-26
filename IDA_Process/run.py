@@ -29,13 +29,6 @@ logger = logging.getLogger(__name__)
 coloredlogs.install(level=logging.INFO)
 coloredlogs.install(level=logging.DEBUG)
 np.seterr(divide="ignore", invalid="ignore")
-
-log_folder = r'D:\program_jiang\Pro\BCA\BinCola_Public\IDA_Process\log'
-os.makedirs(log_folder,exist_ok=True)
-timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H-%M-%S')
-run_log_path = os.path.join(log_folder,'run_{}.log'.format(timestamp))
-file_handler = logging.FileHandler(run_log_path)
-logger.addHandler(file_handler)
 Mode = 'Presematic'
 
 def load_func_data(bin_name):
@@ -97,7 +90,7 @@ class IDAScript():
     def main(self,file_folder,filter):
         all_file_list = check_file(file_folder,filter)
         file_list = []
-        not_include = ['i64','idb','id0','id1','id2','nam','til', 'done', 'utils', 'pickle', 'acfg', 'json']
+        not_include = ['i64','idb','id0','id1','id2','nam','til','done','utils','pickle']
         for f in all_file_list:
             if os.path.basename(f).split('.')[-1] in not_include:
                 pass
@@ -150,28 +143,35 @@ if __name__ == '__main__':
         action="store",
         dest="src_folder",
         help="bin file folder",
-        default=r'D:\program_jiang\Pro\BCA\BinCola_Public\IDA_Process\example\test_bin'
+        default='xxx'
     )
     op.add_option(
         "--out_folder",
         action="store",
         dest="out_folder",
         help="pickle file folder",
-        default=r'D:\program_jiang\Pro\BCA\BinCola_Public\IDA_Process\example\test_out'
+        default='xxx'
     )
     op.add_option(
         "--ida_path",
         action="store",
         dest="ida_path",
         help="ida tool path",
-        default=r'D:\program_jiang\tool\IDA_Pro_7.5_SP3'
+        default='xxx'
     )
     op.add_option(
         "--script_path",
         action="store",
         dest="script_path",
         help="ida script path",
-        default=r'D:\program_jiang\Pro\BCA\BinCola_Public\IDA_Process\extract.py'
+        default='xxx'
+    )
+    op.add_option(
+        "--log_folder",
+        action="store",
+        dest="log_folder",
+        help="log result save folder",
+        default='xxx'
     )
     op.add_option(
         "--run_type",
@@ -191,12 +191,16 @@ if __name__ == '__main__':
               'opt':['all'],
               'others':['all']}
 
+    os.makedirs(opts.log_folder,exist_ok=True)
     os.makedirs(opts.out_folder,exist_ok=True)
     timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H-%M-%S')
-    log_path = os.path.join(log_folder,'{}_{}.log'.format(opts.run_type,timestamp))
+    run_log_path = os.path.join(opts.log_folder,'run_{}.log'.format(timestamp))
+    file_handler = logging.FileHandler(run_log_path)
+    logger.addHandler(file_handler)
+    log_path = os.path.join(opts.log_folder,'{}_{}.log'.format(opts.run_type,timestamp))
     if opts.run_type == 'presematic':
         logger.info('Start presematic features extract ...')
         Presematic_features_extract(opts.src_folder,opts.out_folder,filter,opts.ida_path,opts.script_path,log_path)
     
     clear_mid_file(opts.src_folder)
-    get_done_list(opts.out_folder, filter, log_folder)
+    get_done_list(opts.out_folder, filter, opts.log_folder)

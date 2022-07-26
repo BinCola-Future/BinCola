@@ -3,33 +3,29 @@ import hashlib
 import pickle
 import re
 import networkx as nx
-# Bfunc保存一个函数所有信息的类
+
 class BFunc:
 	def __init__(self, start_addr, end_addr):
-		self.program = None					# 程序名
-		self.funcname = None				# 函数名
-		self.start_addr = start_addr 		# 函数开始地址
-		self.end_addr = end_addr 			# 函数开始地址
-		self.cfg = None						# 函数CFG图结构
-		self.bbs = [] 						# 基本块列表
-		self.embed = None					# 函数基于预训练的嵌入
-		self.info = {}						# 函数基本信息
-		self.hash = None					# 基本块哈希
+		self.program = None					
+		self.funcname = None				
+		self.start_addr = start_addr 		
+		self.end_addr = end_addr 			
+		self.bbs = [] 											
+		self.info = {}						
+		self.hash = None					
 		self.flag = None
 		self.arch = None
 	
-	def add_bb(self, bb):    				# 添加基本块
+	def add_bb(self, bb):    				
 		self.bbs.append(bb)
 	
-	def print_func_bb(self):				# 打印基本块
+	def print_func_bb(self):				
 		for item in self.bbs:
 			item.print_bb()
 
-	def print_func_base(self):				# 打印基本信息
+	def print_func_base(self):				
 		print("program name: " + self.program)
 		print("function name: " + self.funcname)
-		# print("hash: " + self.hash)
-		# print("flag: " + self.flag)
 		print("arch: " + self.arch)
 		print("info: ")
 		for key in self.info.keys():
@@ -43,7 +39,6 @@ class BBasicBlock:
 				"qword_", "dword_", "byte_", "word_", "off_", "def_", "unk_", "asc_",
 				"stru_", "dbl_", "locret_"]
 	CMP_REMS = ["dword ptr ", "byte ptr ", "word ptr ", "qword ptr ", "short ptr "]
-	# 通用寄存器
 	CMP_REGS = {
 		'x86_32':["rax", "eax", "ax", "al", 
 				"rbx", "ebx", "bx", "bl", 
@@ -103,15 +98,15 @@ class BBasicBlock:
 		self.binstrs = []
 		self.preds = []
 		self.succs = []
-		self.hash_v1 = None					# 操作码列表的哈希
-		self.hash_v2 = None 				# 汇编指令列表的哈希
+		self.hash_v1 = None					
+		self.hash_v2 = None 				
 		self.hash_v3 = None
-		self.bb_data = {}					# 基本块基础特征
-		self.bb_ins_features = {}			# 基本块指令特征
+		self.bb_data = {}					
+		self.bb_ins_features = {}			
 		
 		self.neighbour_disasm_list = None
 		self.mnen_list = None
-		self.disasm_list = None				# 标准化后的指令
+		self.disasm_list = None				
 		self.flag = None
 		self.flag_v2 = None
 		
@@ -122,46 +117,31 @@ class BBasicBlock:
 	def add_succs(self, succ):
 		self.succs.append(succ)
 	
-	# 标准化指令
 	def normalize_instruction(self, instr_str, arch):
 		instr_str = instr_str.split(";")[0]
 
-		# # 标准化函数名
-		# for rep in self.CMP_REPS:
-		# 	if rep in instr_str:
-		# 		instr_str = re.sub(rep + "[a-f0-9A-F]+", "func", instr_str)  # 正则替换
-
-		# 删除字节单位
 		for sub in self.CMP_REMS:
 			if sub in instr_str:
 				instr_str = instr_str.replace(sub, "")
 		
-		# 标准化寄存器
 		for r in self.CMP_REGS[arch]:
 			if r in instr_str and 'call' not in instr_str:
 				instr_str = re.sub(r + "[0-9]*", 'reg', instr_str)
 
-		# 替换内存 
 		instr_str = re.sub('\[.*\]',  'mem', instr_str)
 		instr_str = re.sub('=\(.*\)',  'mem', instr_str)
 		
-		# 替换地址
 		instr_str = re.sub('0x[0-9a-fA-F]{5}',  'address', instr_str)
 		
-		# 立即数不用替换
-		
-		# 删除空白区域
 		instr_str = re.sub("[ \t\n]+$", "", instr_str)
 		return instr_str
 	
-	# 获取操作码列表
 	def set_mnen_list(self):
 		mnen_list = []
 		for binstr in self.binstrs:
 			mnen_list.append(binstr.mnem)
 		self.mnen_list = mnen_list
 
-	# 操作码列表的哈希	
 	def set_hash_v1(self):
 		m = hashlib.md5()
 		mnem_str = ' '.join(self.mnen_list)
@@ -169,7 +149,6 @@ class BBasicBlock:
 		md5 = str(m.hexdigest())
 		self.hash_v1 = md5
 	
-	# 获取标准化汇编指令列表
 	def set_disasm_list(self,arch):
 		disasm_list = []
 		for instr in self.binstrs:
@@ -179,7 +158,6 @@ class BBasicBlock:
 			disasm_list.append(n_disasm)
 		self.disasm_list = disasm_list
 
-	# 汇编指令列表的哈希
 	def set_hash_v2(self):
 		m = hashlib.md5()
 		instr_str = ' '.join(self.disasm_list) 
@@ -193,35 +171,20 @@ class BBasicBlock:
 		self.set_disasm_list(arch)
 		self.set_hash_v2()
 		
-
 	def print_bb(self):
-		# 基本块初始地址
 		print ("BB name : " + str(self.start_addr))
 		print ("BB base_fea : ",self.bb_data)
 		print ("BB bb_ins_features :")
 		for k in self.bb_ins_features.keys():
 			print('{:<30}:{:<0}'.format(k,self.bb_ins_features[k]))
-		# 父基本块
 		print ("BB preds : ")
 		print (self.preds)
-		# 子基本块
 		print ("BB succs :")
 		print (self.succs)
 
-		# 标准化之后的指令列表
 		print ("BB disam_list :")
 		for item in self.disasm_list:
 			print ('{:<38} | {:<0}'.format('',item))
-		
-		# 指令列表哈希
-		# print ("BB hash_disam_list: " + self.hash_v2)
-
-		# opcode列表
-		# print ("BB mnen_list :")
-		# print (' '.join(self.mnen_list))
-		
-		# opcode列表哈希
-		# print ("BB hash_mnen_list: " + self.hash_v1)
 		
 		print ("BB instrs: ")
 		for item in self.binstrs:
@@ -231,10 +194,9 @@ class BInstr:
 	def __init__(self, start_addr):
 		self.basicblock = None
 		self.start_addr = start_addr
-		self.disasm = None					# 反汇编指令
+		self.disasm = None					
 		self.mnem = None
 		self.bytes = None
-		# self.disasm_striped = None
 		self.flag = None
 		self.hash = None
 

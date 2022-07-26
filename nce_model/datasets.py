@@ -1,5 +1,4 @@
 # coding:utf-8
-# 创建批量数据集
 import numpy as np
 import torch
 from tqdm import tqdm
@@ -10,7 +9,7 @@ from torch.utils.data import DataLoader,Dataset
 tp_pairs:[[{func_src:feature},{tp_func_dst:feature}]]
 tn_pairs:[[{func_src:feature},[{tn_func_dst:feature}]]]
 """
-def tp_pairs_parse(pairs): # 解析正样本原始函数对
+def tp_pairs_parse(pairs):
     src_funcs_option = []
     src_funcs_feature = []
     pos_funcs_option = []
@@ -25,7 +24,7 @@ def tp_pairs_parse(pairs): # 解析正样本原始函数对
     return src_funcs_option,src_funcs_feature,pos_funcs_option,pos_funcs_feature
 
 
-def tn_pairs_parse(pairs): # 解析负样本函数对
+def tn_pairs_parse(pairs):
     neg_funcs_options = []
     neg_funcs_features = []
     for pair in pairs:
@@ -42,7 +41,7 @@ def tn_pairs_parse(pairs): # 解析负样本函数对
 
 
 class MyDataset(Dataset):
-    def __init__(self, tp_pairs, tn_pairs, device): # 初始化数据集
+    def __init__(self, tp_pairs, tn_pairs, device):
 
         src_funcs_option,src_funcs_feature,pos_funcs_option,pos_funcs_feature = tp_pairs_parse(tp_pairs)
         neg_funcs_option,neg_funcs_feature = tn_pairs_parse(tn_pairs)
@@ -55,7 +54,7 @@ class MyDataset(Dataset):
         self.neg = torch.from_numpy(np.array(neg_funcs_feature)).float().to(device)
 
 
-    def __getitem__(self, index): # 根据索引获取单条数据（data,label）
+    def __getitem__(self, index):
         return self.src_option[index],self.src[index],self.pos[index],self.neg[index]
 
     def __len__(self):

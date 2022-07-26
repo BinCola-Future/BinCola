@@ -3,8 +3,6 @@ import torch
 from torch import nn
 from torch.nn import init
 
-
-
 class ScaledDotProductAttention(nn.Module):
     '''
     Scaled dot-product attention

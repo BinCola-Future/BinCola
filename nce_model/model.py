@@ -47,12 +47,6 @@ class EncoderLayer(nn.Module):
         enc_output = self.pos_ffn(enc_output)
         return enc_output, enc_slf_attn
 
-
-# 模型定义
-# src:[b,f_d]
-# pos:[b,f_d]
-# neg:[b,neg_num,f_d]
-
 class SiameseAttentionNet(nn.Module):
     def __init__(self, feature_dim, hidden_dim, n_layers, n_head, d_k, d_v, att_type, dropout, out_type):
         super().__init__()
@@ -65,13 +59,11 @@ class SiameseAttentionNet(nn.Module):
     def forward(self, src, pos, neg):
         attn_list = []
         neg_num = neg.shape[1]
-        # 在最后一维增加一个维度 [b,f_d] --> [b,f_d,1]
         src = src.unsqueeze(-1)
         pos = pos.unsqueeze(-1)
         neg = neg.unsqueeze(-1)
-        # 第三维填充0 [b,f_d,1] --> [b,f_d,d_model]
-        pad = (self.feature_dim-1,0) # (左填充数，右填充数)
-        output_src = F.pad(src,pad,'constant',0) # 'constant-常量','reflect-反射','replicate-复制'
+        pad = (self.feature_dim-1,0)
+        output_src = F.pad(src,pad,'constant',0)
         output_pos = F.pad(pos,pad,'constant',0)
         output_neg = F.pad(neg,pad,'constant',0)
 
@@ -85,11 +77,6 @@ class SiameseAttentionNet(nn.Module):
             for idx in range(neg_num):
                 output_neg[:,idx,:,:], _ = enc_layer(output_neg[:,idx,:,:].clone(), slf_attn_mask=None)
         
-                
-        # 重新变为基础特征维度数,dim指定被消除的维度
-        # output1 = output1.sum(dim=-1)
-        # output2 = output2.sum(dim=-1)
-        # [b,d_model]
         if self.out_type == 'mean':
             output_src = output_src.mean(dim=-2)
             output_pos = output_pos.mean(dim=-2)
@@ -105,7 +92,6 @@ class SiameseAttentionNet(nn.Module):
         similarity = F.cosine_similarity(torch.cat((output_src,output_src),0), torch.cat((output_pos,output_neg[:,0,:]),0), dim=-1, eps=1e-8)
         return output_src, output_pos, output_neg, similarity, attn_list
 
-    # 归一化0-1
     def data_normal(self, origin_data):
         d_min = origin_data.min()
         if d_min < 0:
@@ -128,8 +114,8 @@ class UseAttentionNet(nn.Module):
     def forward(self, src):
         attn_list = []
         src = src.unsqueeze(-1)
-        pad = (self.feature_dim-1,0) # (左填充数，右填充数)
-        output_src = F.pad(src,pad,'constant',0) # 'constant-常量','reflect-反射','replicate-复制'
+        pad = (self.feature_dim-1,0)
+        output_src = F.pad(src,pad,'constant',0)
 
         for enc_layer in self.layer_stack:
             output_src, slf_attn = enc_layer(output_src, slf_attn_mask=None)
@@ -144,7 +130,6 @@ class UseAttentionNet(nn.Module):
             output_src = output_src[:,-1,:]
         return output_src, attn_list
 
-    # 归一化0-1
     def data_normal(self, origin_data):
         d_min = origin_data.min()
         if d_min < 0:
