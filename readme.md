@@ -3,9 +3,9 @@
 
 Official code of **BinCola: Self-supervised Contrastive Learning for Binary Code Similarity Detection**
 
-![Illustrating the performance of the proposed jTrans](/figures/MRR-poolsize.pdf)
-![Illustrating the performance of the proposed jTrans](/figures/TOP1-poolsize.pdf)
-![Illustrating the performance of the proposed jTrans](/figures/TOP5-poolsize.pdf)
+![Illustrating the performance of the proposed jTrans](/figures/MRR-poolsize.png)
+![Illustrating the performance of the proposed jTrans](/figures/TOP1-poolsize.png)
+![Illustrating the performance of the proposed jTrans](/figures/TOP5-poolsize.png)
 
 ## Get Started
 
