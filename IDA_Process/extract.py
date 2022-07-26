@@ -22,7 +22,6 @@ from pyinstrument import Profiler
 from capstone import *
 from ida_scripts.utils import get_arch,store_func_data,parse_fname
 from ida_scripts.fetch_funcdata import get_func_info,get_call_graph,get_bb_graph
-from ida_scripts.extract_functype import get_func_types
 from feature.asm import analyze_insts
 from feature.asm_const import GRP_NO_MAP
 from feature.feature_manager import FeatureManager
