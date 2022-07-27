@@ -17,7 +17,7 @@ from optparse import OptionParser
 from sklearn.model_selection import KFold
 from sklearn.metrics import roc_curve, auc, average_precision_score
 from sklearn.metrics.pairwise import cosine_similarity
-from nce_utils import do_multiprocess,parse_fname,load_bfunc_data
+from nce_utils import do_multiprocess,parse_fname,load_func_data
 from nce_model.datasets import CreateDataLoader
 from nce_model.model import SiameseAttentionNet,InfoNCELoss
 from nce_model.Similar import SimCal
@@ -238,6 +238,7 @@ def create_train_pairs(funcs, dst_options, optionidx_map, negative_num):
     return tp_pairs,tn_pairs
 
 def load_model(opts, device):
+    print(os.path.exists(opts.model_path))
     checkpoint = torch.load(opts.model_path, map_location=device)
     model_opt = checkpoint['settings']
 
@@ -395,10 +396,8 @@ def load_func_features_helper(bin_paths):
     for bin_path in bin_paths:
         package, compiler, arch, opti, bin_name = parse_fname(bin_path)
         others = parse_other_options(bin_path)
-        _, bfunc_data_dict = load_bfunc_data(bin_path)
-        for func_name in bfunc_data_dict.keys():
-            bfunc_data = bfunc_data_dict[func_name]
-            func_data = bfunc_data.info
+        _, func_data_list = load_func_data(bin_path)
+        for func_data in func_data_list:
             # Use only .text functions for testing
             if func_data["seg_name"] != ".text":
                 continue
@@ -542,7 +541,7 @@ def att_weight_analysis(att,features,outdir):
     fileObject.close()
 
 
-def do_train(opts):
+def do_eval(opts):
     binary_list = []
     options_list = []
     train_pairs_list = []
@@ -579,9 +578,7 @@ def do_train(opts):
         date = datetime.datetime.now()
         outdir = os.path.join(outdir, str(date).replace(':','-').replace(' ','-'))
 
-        model_save = os.path.join(opts.log_out, opts.sim_method, opts.out_type, opts.model_save)
         os.makedirs(outdir, exist_ok=True)
-        os.makedirs(model_save, exist_ok=True)
         file_handler = logging.FileHandler(os.path.join(outdir, "log.txt"))
         logger.addHandler(file_handler)
         logger.info("config file name: %s", config["fname"])
@@ -644,117 +641,6 @@ def do_train(opts):
         logger.info("# of Valid Pairs: %d", len(valid_tp_pairs) + len(valid_tn_pairs)*opts.negative_num)
         logger.info("# of Test Pairs: %d", len(test_tp_pairs) + len(test_tn_pairs)*opts.negative_num)
         
-        model_name = 'funcs{}_{}_fea{}_hid{}_kv{}_head{}_layer{}_negnum{}_outtype{}_temper_{}.chkpt'.format(
-            len(func_keys),
-            config_fname.split('config_gnu_normal_')[1].split('_type.yml')[0],
-            opts.feature_dim,
-            opts.hidden_dim,
-            opts.d_k,
-            opts.n_head,
-            opts.n_layers,
-            opts.negative_num,
-            opts.out_type,
-            opts.temper,
-        )
-
-
-        if opts.train:
-            opts.model_path = os.path.join(model_save, model_name)
-            if os.path.exists(opts.model_path):
-                net = load_model(opts,device)
-                logger.info("Load model {}...".format(opts.model_path))
-            else:
-                net = SiameseAttentionNet(opts.feature_dim,
-                                        opts.hidden_dim,
-                                        opts.n_layers,
-                                        opts.n_head,
-                                        opts.d_k,
-                                        opts.d_v,
-                                        opts.att_type,
-                                        opts.dropout,
-                                        opts.out_type).to(device)
-            optimizer = ScheduledOptim(
-                optim.Adam(net.parameters(), lr=0.0005, betas=(0.9, 0.98), eps=1e-09),
-                opts.lr_mul, opts.feature_dim, opts.warmup_steps)
-            logger.info("create train model ...")
-
-            valid_loss = []
-
-            logger.info("train...")
-            # ===================== training ======================
-            t0 = time.time()
-            if opts.use_tb:
-                logger.info("Use Tensorboard")
-                from torch.utils.tensorboard import SummaryWriter
-
-                tb_writer = SummaryWriter(log_dir=os.path.join(outdir, 'tensorboard'))
-            stop_mark = 0
-            for epoch in range(opts.epoch):
-                pred_all = []
-                lable_all = []
-                loss_all = []
-                for i,data in enumerate(train_data_loader):
-                    src_option, src, pos, neg = data
-                    optimizer.zero_grad()
-                    src_out,pos_out,neg_out,similarity,slf_attn = net(src, pos, neg)
-                    if opts.loss_type == "InfoNCE":
-                        loss_contrastive = InfoNCELoss(src_out, pos_out, neg_out, opts.temper)
-                    loss_contrastive.backward()
-                    pred = similarity.cpu().detach().numpy()
-                    optimizer.step_and_update_lr()
-                    loss_all.append(loss_contrastive.cpu().detach().numpy())
-                    pred_all.extend(pred)
-                    lable_all.extend([1.0 for _ in range(int(pred.shape[0]/2))])
-                    lable_all.extend([0.0 for _ in range(int(pred.shape[0]/2))])
-                lr = optimizer._optimizer.param_groups[0]['lr']
-                epoch_train_roc, epoch_train_ap = calc_results(pred_all, lable_all)
-                epoch_train_loss = np.mean(loss_all)
-                logger.info(" -Train- Epoch number:{} , AUC:{:.6f} , Loss:{:.6f} , Lr:{}".format(epoch, epoch_train_roc, epoch_train_loss,lr))
-
-                # ===================== validing ======================
-                pred_all = []
-                lable_all = []
-                loss_all = []
-                for i, data in enumerate(valid_data_loader):
-                    src_option, src, pos, neg = data
-                    src_out,pos_out,neg_out,similarity,slf_attn = net(src, pos, neg)
-                    if opts.loss_type == "InfoNCE":
-                        loss_contrastive = InfoNCELoss(src_out, pos_out, neg_out, opts.temper)
-                    else:
-                        loss_contrastive = MSELoss(src_out, pos_out, neg_out)
-                    pred = similarity.cpu().detach().numpy()
-                    pred_all.extend(pred)
-                    lable_all.extend([1.0 for _ in range(int(pred.shape[0]/2))])
-                    lable_all.extend([0.0 for _ in range(int(pred.shape[0]/2))])
-                    loss_all.append(loss_contrastive.cpu().detach().numpy())
-
-                epoch_valid_roc, epoch_valid_ap = calc_results(pred_all, lable_all)
-                epoch_valid_loss = np.mean(loss_all)
-                logger.info(" -Valid- Epoch number:{} , AUC:{:.6f} , Loss:{:.6f}".format(epoch, epoch_valid_roc, epoch_valid_loss))
-
-
-                valid_loss += [epoch_valid_loss]
-                checkpoint = {'epoch': epoch, 'settings': opts, 'model': net.state_dict()}
-
-                if epoch_valid_loss <= min(valid_loss):
-                    torch.save(checkpoint, os.path.join(model_save, model_name))
-                    logger.info('-The checkpoint file has been updated.')
-                    stop_mark = 0
-                else:
-                    stop_mark += 1
-                    if stop_mark > opts.stop_th:
-                        logger.info('-The checkpoint file has not been updated for {} time.'.format(opts.stop_th))
-                        break
-
-                if opts.use_tb:
-                    tb_writer.add_scalars('roc_auc', {'train': epoch_train_roc*100, 'val': epoch_valid_roc*100}, epoch)
-                    tb_writer.add_scalars('avg_ap', {'train': epoch_train_ap*100, 'val': epoch_valid_ap*100}, epoch)
-                    tb_writer.add_scalars('loss', {'train': epoch_train_loss, 'val': epoch_valid_loss}, epoch)
-                    tb_writer.add_scalar('learning_rate', lr, epoch)
-
-            train_time = time.time() - t0
-            logger.info("train down. (%0.3fs)", train_time)
-
 
         # ===================== testing ======================
         t0 = time.time()
@@ -769,7 +655,6 @@ def do_train(opts):
         pos_origin = []
         neg_origin = []
         if opts.test_type == 'with_dl':
-            opts.model_path = os.path.join(model_save, model_name)
             net = load_model(opts,device)
             for i, data in enumerate(test_data_loader):
                 src_option, src, pos, neg = data
@@ -893,45 +778,25 @@ if __name__ == "__main__":
         default="xxx"
     )
     op.add_option("--batch_size",type=int,default=64)
-    op.add_option("--feature_dim",type=int,default=128)
-    op.add_option('--hidden_dim', type=int, default=512)
-    op.add_option('--n_layers', type=int, default=4)
-    op.add_option('--epoch', type=int, default=300)
-    op.add_option('--n_head', type=int, default=4)
-    op.add_option('--d_k', type=int, default=32)
-    op.add_option('--d_v', type=int, default=32)
-    op.add_option('--dropout', type=float, default=0.1)
-    op.add_option('--warmup_steps', type=int, default=4000)
-    op.add_option('--lr_mul', type=float, default=0.5)
-    op.add_option('--num_folds', type=int, default=5)
-    op.add_option('--train_ratio', type=float, default=0.8)
     op.add_option('--negative_num', type=int, default=1)
-    op.add_option('--model_save', type=str, default='model_save')
+    op.add_option('--model_path', type=str, default='xxx')
     op.add_option('--log_out', type=str, default="xxx")
-    op.add_option('--use_tb', action='store_true')
     op.add_option('--debug', action='store_true')
-    op.add_option('--train', action='store_true')
     op.add_option('--train_per', type=float, default=0.8)
     op.add_option('--valid_per', type=float, default=0.1)
-    op.add_option('--stop_th', type=int, default=5)
     op.add_option('--device', type=str, default="cuda:0")
-    op.add_option('--temper', type=float, default=0.1)
     op.add_option('--test_type', choices=['with_dl','no_dl'], default='with_dl')
-    op.add_option('--test_poolsize', type=int, default='32')
-    op.add_option('--loss_type', choices=['InfoNCE','MSE'], default='InfoNCE')
     op.add_option('--sim_method', choices=[
                     'EculidDisSim',
 			        'CosSim',
 			        'PearsonrSim',
 			        'ManhattanDisSim'], default='CosSim')
-    op.add_option('--att_type', choices=[
-                    'SelfAttention',
-                    'NoAttention'], default='SelfAttention')
     op.add_option('--out_type', choices=[
-                    'last',
-                    'mean',
-                    'sum'], default='mean')
+                'last',
+                'mean',
+                'sum'], default='mean')
+
     op.add_option('--baseline', choices=['Self'], default='Self')
 
     (opts, args) = op.parse_args()
-    do_train(opts)
+    do_eval(opts)

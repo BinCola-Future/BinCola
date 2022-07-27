@@ -29,6 +29,14 @@ pip install torch torchvision torchaudio tensorboard numpy pandas coloredlogs ma
 ### Datasets
 
 [Dataset BINKIT](https://github.com/SoftSec-KAIST/binkit)
+[Mix_options_pickle.zip](https://drive.google.com/file/d/17Svo5WHn0Y-jgqYlm4JmNG1b5GarkTXV/view?usp=sharing)
+[Obfus_pickle.zip](https://drive.google.com/file/d/1H5hzcYxya1-3fTl0WoHIlPMzJ7T0jYjO/view?usp=sharing)
+[Vulner_Patch_Bin.zip](https://drive.google.com/file/d/1LfbstrsZjfhDZjNHSPRveDu1k9p9848e/view?usp=sharing)
+[CVEs_Bin.zip](https://drive.google.com/file/d/1WQXL809uiwWcLevQFVrbXthaqlbjI05I/view?usp=sharing)
+
+### Models
+
+[model_save_test](https://drive.google.com/file/d/1M3rPmlIawCPPrCbQ9wAfGKA7uKwEck6p/view?usp=sharing)
 
 ### Quick Start
 
@@ -36,12 +44,6 @@ pip install torch torchvision torchaudio tensorboard numpy pandas coloredlogs ma
 
 ```python
 git clone https://github.com/BinCola-Future/BinCola.git && cd BinCola
-```
-
-Download [experiments.tar.gz](https://cloud.vul337.team:8443/s/wmqzYFyJnSEfEgm) and extract them.
-
-```python
-tar -xzvf experiments.tar.gz
 ```
 
 **b. Preprocess binary files**
@@ -59,15 +61,32 @@ python IDA_Process/run.py \
 
 ```python
 cd core/
-# Generate a list of training files
+# Generate a list of train files
 python preprocess_bcsa.py \
     --src_folder "The parsed pickle file save directory"
     --out_folder "training file list save folder"
-# Train and evaluate the model
+# Train the model
 python train.py \
     --debug # fix random seed
-    --train # Set to training mode, otherwise evaluation mode
+    --train # Set to train mode, otherwise evaluation mode
     --input_list "training file list save path"
     --config_folder "config folder"
     --log_out "result save folder"
+```
+
+**d. Evaluate the model**
+
+```python
+cd core/
+# Generate a list of eval files
+python preprocess_bcsa.py \
+    --src_folder "The parsed pickle file save directory"
+    --out_folder "eval file list save folder"
+# Evaluate the model
+python eval.py \
+    --debug # fix random seed
+    --input_list "training file list save path"
+    --config_folder "config folder"
+    --log_out "result save folder"
+    --model_path "eval model path"
 ```
