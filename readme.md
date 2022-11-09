@@ -30,8 +30,8 @@ pip install torch torchvision torchaudio tensorboard numpy pandas coloredlogs ma
 
 - [Mix_options_pickle.zip](https://drive.google.com/file/d/17Svo5WHn0Y-jgqYlm4JmNG1b5GarkTXV/view?usp=sharing)
 - [Obfus_pickle.zip](https://drive.google.com/file/d/1H5hzcYxya1-3fTl0WoHIlPMzJ7T0jYjO/view?usp=sharing)
-- [Vulner_Patch_Bin.zip](https://drive.google.com/file/d/1LfbstrsZjfhDZjNHSPRveDu1k9p9848e/view?usp=sharing)
-- [CVEs_Bin.zip](https://drive.google.com/file/d/1WQXL809uiwWcLevQFVrbXthaqlbjI05I/view?usp=sharing)
+- [Vulner_Search_Bin.zip](https://drive.google.com/file/d/1LfbstrsZjfhDZjNHSPRveDu1k9p9848e/view?usp=sharing)
+- [CVE_Search_Bin.zip](https://drive.google.com/file/d/1WQXL809uiwWcLevQFVrbXthaqlbjI05I/view?usp=sharing)
 
 ### Models
 
@@ -65,7 +65,9 @@ python preprocess_bcsa.py \
     --src_folder "The parsed pickle file save directory"
     --out_folder "training file list save folder"
 # Train the model
-python train.py \
+# train.py - one positive sample
+# train_select.py - set positive samples num
+python train.py or train_select.py \
     --debug # fix random seed
     --train # Set to train mode, otherwise evaluation mode
     --input_list "training file list save path"
